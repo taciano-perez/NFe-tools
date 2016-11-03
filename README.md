@@ -9,3 +9,4 @@ Currently tested with Python 2.
 * BeautifulSoup4
 * html2text
 * urllib
+* lxml
