@@ -10,3 +10,7 @@ Currently tested with Python 2.
 * html2text
 * urllib
 * lxml
+
+# How to run
+* Edit credentials.py to set your username/password
+* Execute scrape_nfe.py
