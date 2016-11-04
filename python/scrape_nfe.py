@@ -86,6 +86,12 @@ for tr in rows:
     #print 'Origem:',cols[4].string
     print 'Valor(R$):',cols[6].string
     print 'Registro:',cols[7].string
+    print 'Tipo Operacao:',cols[8].string
+
+    # ignore NFe that are different than 'Aquisicao'
+    if cols[8].string[:6] != 'Aquisi':
+        print 'INFO: Ignorando NFe diferente de AquisiÃ§Ã£o.'
+        continue
 
     # intermediate screen, we need to get chaveNFe here
     onclick = cols[3].a['onclick'].split('\'')
