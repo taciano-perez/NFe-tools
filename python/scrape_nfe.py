@@ -1,9 +1,12 @@
-##################################### Method 1
+# SCRAPE NFE
+import sys
 import mechanize
 import cookielib
 from bs4 import BeautifulSoup
 import html2text
 import urllib
+from datetime import date
+from datetime import datetime
 
 # Browser
 br = mechanize.Browser()
@@ -25,6 +28,12 @@ br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
 
 br.addheaders = [('User-agent', 'Chrome')]
 
+# Used for POST requests using mechanize
+class PutRequest(mechanize.Request):
+    "Extend the mechanize Request class to allow a http PUT"
+    def get_method(self):
+        return "PUT"
+
 ### LOGIN
 
 # The site we will navigate into, handling its session
@@ -45,88 +54,163 @@ br.form['senha_loginNfg_cabec'] = PASSWORD
 # Login
 br.submit()
 
-#print(br.open('https://nfg.sefaz.rs.gov.br/cadastro/ConsultaDocumentos.aspx').read())
-br.open('https://nfg.sefaz.rs.gov.br/cadastro/ConsultaDocumentos.aspx').read()
-
 ### CONSULTA
 
-# data de emissao, todos os municipios
-q_params = { 'pTipoData': '1', 'pDtInicial': '01012010', 'pDtFinal': '03112016', 'pCodMunicipio': '0' }
+DATE_BEGIN = '01012010'
+DATE_END = date.today().strftime("%d%m%Y")
+MAX_NFE_PAGE = 219
+last_date = DATE_END    # this will be used later to make new queries each MAX_NFE_PAGE NFes loop
 
-class PutRequest(mechanize.Request):
-    "Extend the mechanize Request class to allow a http PUT"
-    def get_method(self):
-        return "PUT"
+# NFes are paged in groups of MAX_NFE_PAGE, so we need a loop to iterate through them
+finished = False
+nfe_count = 0
+nfe_count_round = 0 # each round is >=MAX_NFE_PAGE NFEs (the max number displayed by page)
+total_nfe = 1
+while finished == False:
 
-q_data = urllib.urlencode(q_params)
-q_url = 'https://nfg.sefaz.rs.gov.br/Cadastro/ConsultaDocumentos_Do.aspx'
-br.addheaders = [('Content-type', 'xml')]
-#print br.open(PutRequest(q_url),data=q_data).read()
-#response = mechanize.urlopen(request, data=data)
-nfes_data =  br.open(q_url,data=q_data).read()
-#print nfes_data
-soup = BeautifulSoup(nfes_data, "lxml")
-
-#table = soup.find('table')
-#print 'soup.table =',soup.table
-
-table = soup.find('table', attrs={'id': 'areaDocumentoTab'})
-rows = table.findAll('tr')
-# iterate through each NFE
-for tr in rows:
-    #tr = rows[1]
-    cols = tr.findAll('td')
-    # print NFE summary
-    print '----------------------'
-    print 'Municipio:',cols[0].string
-    print 'Razao Social:',cols[1].string
-    print 'Emissao:',cols[2].string
-    print 'Numero:',cols[3].string
-    #print '-->',cols[3].a['onclick']
-    #print 'Origem:',cols[4].string
-    print 'Valor(R$):',cols[6].string
-    print 'Registro:',cols[7].string
-    print 'Tipo Operacao:',cols[8].string
-
-    # ignore NFe that are different than 'Aquisicao'
-    if cols[8].string[:6] != 'Aquisi':
-        print 'INFO: Ignorando NFe diferente de AquisiÃ§Ã£o.'
+    # condition for completing everything
+    if nfe_count == total_nfe:
+        finished = True
         continue
 
-    # intermediate screen, we need to get chaveNFe here
-    onclick = cols[3].a['onclick'].split('\'')
-    #print onclick
-    nfe_params = {'pTipoDoctoOrig': onclick[3], 'pCodIntDoctoOrig': onclick[5], 'pCodIntRmov': onclick[7], 'pNomeContrib': onclick[9], 'pNomeSitDocto': onclick[11], 'pCodSitDocto': onclick[13], 'pCodIntDoctoCpf': onclick[15], 'pPaginaOrigem': onclick[1]}
-    #print nfe_params
-    nfe_data = urllib.urlencode(nfe_params)
-    nfe_url = 'https://nfg.sefaz.rs.gov.br/Cadastro/ConsultaDocumentosDetalhe_Do.aspx'
+    # if we reached the MAX_NFE_PAGE mark, let's restart the loop
+    if nfe_count_round == MAX_NFE_PAGE:
+        nfe_count_round = 0
+        DATE_END = last_date.strftime("%d%m%Y")
+
+    # data de emissao, todos os municipios
+    q_params = { 'pTipoData': '1', 'pDtInicial': DATE_BEGIN, 'pDtFinal': DATE_END, 'pCodMunicipio': '0' }
+
+    q_data = urllib.urlencode(q_params)
+    q_url = 'https://nfg.sefaz.rs.gov.br/Cadastro/ConsultaDocumentos_Do.aspx'
     br.addheaders = [('Content-type', 'xml')]
-    nfe_data = br.open(nfe_url,data=nfe_data).read()
-    #print nfe_data
-    soup2 = BeautifulSoup(nfe_data, "lxml")
-    a = soup2.find('a', attrs={'target': '_blank'})
-    #print a
-    #print a['href']
-    target_url = a['href']
-    target_data = br.open(target_url).read()
-    #print target_data
+    nfes_data =  br.open(q_url,data=q_data).read()
+    #print nfes_data
+    soup = BeautifulSoup(nfes_data, "lxml")
 
-    chaveNFe = target_url.split('=')[1]
+    nfes_returned = soup.find('h3', attrs={'class': 'subtitle'}).contents[4]
+    if nfe_count == 0:  # do this only in first iteration, before pagination
+        total_nfe = int(nfes_returned)
+        print 'Attempting to process NFe count =',total_nfe
 
-    # here we get the actual NFE contents
-    form1_url = 'https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp'
-    form1_args = urllib.urlencode({'chaveNFe': chaveNFe})
-    br.open(form1_url, form1_args)
-    br.select_form(nr=0)
-    br.form['HML'] = ['false',]
-    br.form['chaveNFe'] = chaveNFe
-    r = br.submit()
-    form1_data = r.get_data()
-    soup3 = BeautifulSoup(form1_data, "lxml")
-    nfe_table = soup3.findAll('table', attrs={'class': 'NFCCabecalho'})[3]
-    #print nfe_table
-    # print each NFE entry
-    nfe_rows = nfe_table.findAll('tr')
-    for nfe_tr in nfe_rows:
-        nfe_cols = nfe_tr.findAll('td')
-        print nfe_cols[0].string , nfe_cols[1].string, nfe_cols[2].string, nfe_cols[3].string, nfe_cols[4].string, nfe_cols[5].string
+    table = soup.find('table', attrs={'id': 'areaDocumentoTab'})
+    rows = table.findAll('tr')
+    # iterate through each NFE
+    for tr in rows:
+        # if we reached the total NFE amount, get out of loop
+        if nfe_count == total_nfe:
+            #print 'GETTING OUT OF LOOP'
+            break
+        # if we reached the MAX_NFE_PAGE mark, let's restart the loop
+        if nfe_count_round == MAX_NFE_PAGE:
+            break
+        nfe_count += 1
+        nfe_count_round += 1
+        print 'Processing NFE #',nfe_count
+        #print 'Round #',nfe_count_round
+        #print 'NFe total = ',total_nfe
+        try:    # will attempt to recover from exceptions by skipping to the next NFe
+            cols = tr.findAll('td')
+            #print cols
+            if len(cols) < 9:
+                #print nfes_data
+                #print table
+                print '---> Cols lenght == ', len(cols),' we don\'t know how to parse it. Ignoring NFe...'
+                continue
+            # print NFE summary
+            print '----------------------'
+            print 'Municipio:',cols[0].string
+            print 'Razao Social:',cols[1].string
+            print 'Emissao:',cols[2].string
+            print 'Numero:',cols[3].string
+            #print '-->',cols[3].a['onclick']
+            print 'Origem:',cols[4].string
+            print 'Valor(R$):',cols[6].string
+            print 'Registro:',cols[7].string
+            print 'Tipo Operacao:',cols[8].string
+            print 'Situacao Documento:',cols[9].string
+
+            # ignore NFe where Tipo Operacao is different from 'Aquisicao'
+            if cols[8].string[:6] != 'Aquisi':
+                print 'INFO: Ignorando NFe diferente de Aquisicao.'
+                continue
+            # ignore NFe where Situacao Documento is different from 'Normal'
+            if cols[9].string[:6] != 'Normal':
+                print 'INFO: Ignorando NFe diferente de Normal.'
+                continue
+
+            # update last_date for the next round
+            last_date = datetime.strptime(cols[2].string, '%d/%m/%y')
+
+            # go to NFE dialog (clicking column 'Numero')
+            onclick = cols[3].a['onclick'].split('\'')
+            #print onclick
+            nfe_params = {'pTipoDoctoOrig': onclick[3], 'pCodIntDoctoOrig': onclick[5], 'pCodIntRmov': onclick[7], 'pNomeContrib': onclick[9], 'pNomeSitDocto': onclick[11], 'pCodSitDocto': onclick[13], 'pCodIntDoctoCpf': onclick[15], 'pPaginaOrigem': onclick[1]}
+            #print nfe_params
+            nfe_data = urllib.urlencode(nfe_params)
+            nfe_url = 'https://nfg.sefaz.rs.gov.br/Cadastro/ConsultaDocumentosDetalhe_Do.aspx'
+            br.addheaders = [('Content-type', 'xml')]
+            nfe_data = br.open(nfe_url,data=nfe_data).read()
+            #print nfe_data
+            soup2 = BeautifulSoup(nfe_data, "lxml")
+            # if origem == Cupom Fiscal, data is right here
+            if cols[4].string == 'Cupom Fiscal':
+                #print nfe_data
+                table_items = soup2.find('table', attrs={'class': 'resultadoPesquisaCep'})
+                items_rows = table_items.findAll('tr')
+                for items_tr in items_rows:
+                    items_hdrs = items_tr.findAll('th')
+                    items_cols = items_tr.findAll('td')
+                    if len(items_hdrs) == 5:   # avoid attempting to read empty lines
+                        print items_hdrs[0].string , items_hdrs[1].string, items_hdrs[2].string, items_hdrs[3].string, items_hdrs[4].string
+                    if len(items_cols) == 5:   # avoid attempting to read empty lines
+                        print items_cols[0].string , items_cols[1].string, items_cols[2].string, items_cols[3].string, items_cols[4].string
+                continue  # We've got the data, skip the rest
+
+            # if origem == NFe, we need to get chaveNFe here and go to next page 'Clique Aqui'
+            a = soup2.find('a', attrs={'target': '_blank'})
+            #print a
+            #print a['href']
+            target_url = a['href']
+            target_data = br.open(target_url).read()
+            #print target_data
+            form1_url = target_url.split('?')[0]
+            #print 'form1_url=',form1_url
+            chaveNFe = target_url.split('=')[1]
+
+            # FIXME: we have trouble parsing URL 'https://www.sefaz.rs.gov.br/NFE/NFE-COM.aspx',
+            #        so by now we'll focus only on 'https://www.sefaz.rs.gov.br/NFE/NFE-NFC.aspx'
+            #        In any case, it seems redudant with a "Cupom Fiscal"
+            if form1_url != 'https://www.sefaz.rs.gov.br/NFE/NFE-NFC.aspx':
+                print 'Ignoring this NFe, since we don\'t know yet how to parse it :-(. However, it seems redundant with a Cupom Fiscal :-)'
+                print 'URL=',form1_url
+                continue
+
+            # here we get the actual NFE contents
+            form1_url = 'https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_1.asp'
+            form1_args = urllib.urlencode({'chaveNFe': chaveNFe})
+            form1_html = br.open(form1_url, form1_args).read()
+            #print form1_html
+            br.select_form(nr=0)
+            br.form['HML'] = ['false',]
+            br.form['chaveNFe'] = chaveNFe
+            r = br.submit()
+            form1_data = r.get_data()
+            #print form1_data
+            soup3 = BeautifulSoup(form1_data, "lxml")
+            nfe_tables = soup3.findAll('table', attrs={'class': 'NFCCabecalho'})
+            if len(nfe_tables) < 4:
+                print 'Number of NFE tables less than 4, we don\'t know how to parse it. Ignoring...'
+                continue
+            nfe_table = nfe_tables[3]
+            #print nfe_table
+            # print each NFE entry
+            nfe_rows = nfe_table.findAll('tr')
+            for nfe_tr in nfe_rows:
+                nfe_cols = nfe_tr.findAll('td')
+                print nfe_cols[0].string , nfe_cols[1].string, nfe_cols[2].string, nfe_cols[3].string, nfe_cols[4].string, nfe_cols[5].string
+        except: # let's log the error and skip this NFe...
+            print "Unexpected error:", sys.exc_info()[0]
+            print 'Going to next NFe'
+            continue
+
