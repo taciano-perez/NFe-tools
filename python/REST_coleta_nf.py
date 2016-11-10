@@ -9,7 +9,7 @@ def coletaNF():
 	user = request.args.get('user', '')
 	password = request.args.get('password', '')
 	nf_count = scrapeNFdata(user, password)
-    return "ColetaNF REST microservice " + user + " " + password + " " + nf_count
+	return "ColetaNF REST microservice " + user + " " + password + " " + nf_count
 
 def scrapeNFdata(user, password):
 	return 2
