@@ -70,9 +70,8 @@ def scrapeNFdata(user, password):
 	br.select_form(nr=0)
 
 	# User credentials
-	from credentials import *
-	br.form['nro_cpf_loginNfg_cabec'] = USER
-	br.form['senha_loginNfg_cabec'] = PASSWORD
+	br.form['nro_cpf_loginNfg_cabec'] = user
+	br.form['senha_loginNfg_cabec'] = password
 
 	# Login
 	br.submit()
