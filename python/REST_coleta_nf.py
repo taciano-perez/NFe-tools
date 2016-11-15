@@ -263,7 +263,7 @@ def scrapeNFdata(user, password):
 
 	return 2
 	
-def DBinsertNF(db, cur, hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao) {
+def DBinsertNF(db, cur, hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao):
 	print "inserting NF into DB"
 	try:
 		cur.insert("INSERT INTO nf VALUES (%s,%s,%s,%s,STR_TO_DATE('%s'), '%d%m%Y')", (hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao))
