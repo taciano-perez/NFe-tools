@@ -26,7 +26,7 @@ def scrapeNFdata(user, password):
 	# get db connection and cursor
 	db = MySQLdb.connect(host="mysql-mdf",    # your host, usually localhost
 						 user="root",         # your username
-						 passwd="insecure"),  # your password
+						 passwd="insecure",  # your password
 						 db="mdf")        	  # name of the data base
 	cur = db.cursor()
 	
