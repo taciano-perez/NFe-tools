@@ -271,7 +271,6 @@ def DBinsertNF(db, cur, hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_e
 	except:
 		print "DB error inserting NF, rolling back"
 		db.rollback()
-}
 
 def DBinsertNFitem(db, cur, hash_cpf, nf_numero, nf_codigo, nf_desc, nf_qtd, nf_un, nf_val_unit, nf_val_total):
 	print "inserting NF item into DB"
