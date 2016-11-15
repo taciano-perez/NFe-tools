@@ -280,7 +280,7 @@ def DBinsertNFitem(db, cur, hash_cpf, nf_numero, nf_codigo, nf_desc, nf_qtd, nf_
 		db.commit()
 	except:
 		print "DB error inserting NF entry, rolling back"
-	   db.rollback()
-	   
+		db.rollback()
+
 if __name__ == "__main__":
     app.run(host= '0.0.0.0')
