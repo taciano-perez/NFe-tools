@@ -1,0 +1,14 @@
+# create container for microservice 'ColetaNF'
+FROM ubuntu:16.04
+MAINTAINER Taciano Perez <tdperez@hotmail.com>
+RUN apt-get update && apt-get install -y python-mysqldb wget
+RUN wget https://bootstrap.pypa.io/get-pip.py
+RUN python get-pip.py
+RUN pip install flask mechanize BeautifulSoup4 html2text lxml
+#RUN apt-get install -y locales
+#RUN locale-gen pt_BR pt_BR.UTF-8
+#RUN dpkg-reconfigure locales
+#RUN  echo 'LANG="pt_BR.UTF-8"'>/etc/default/locale && \
+#    dpkg-reconfigure --frontend=noninteractive locales && \
+#    update-locale LANG=pt_BR.UTF-8
+ADD python/REST_coleta_nf.py python/REST_coleta_nf.py

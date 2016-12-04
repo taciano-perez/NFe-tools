@@ -10,6 +10,8 @@ import html2text
 import urllib
 from datetime import date
 from datetime import datetime
+#import locale
+import unicodedata
 
 app = Flask(__name__)
 
@@ -29,6 +31,10 @@ def scrapeNFdata(user, password):
 						 passwd="insecure",  # your password
 						 db="mdf")        	  # name of the data base
 	cur = db.cursor()
+	
+	# set locale
+	#print 'setting locale...'
+	#locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 	
 	### process NFe
 	# Browser
@@ -141,34 +147,36 @@ def scrapeNFdata(user, password):
 					continue
 				# print NFE summary
 				print '----------------------'
-				print 'Municipio:',cols[0].string
-				print 'Razao Social:',cols[1].string
-				print 'Emissao:',cols[2].string
+				print 'Municipio:',utf_normalize(cols[0].string)
+				print 'Razao Social:',utf_normalize(cols[1].string)
+				print 'Emissao:',utf_normalize(cols[2].string)
 				print 'Numero:',cols[3].string
 				#print '-->',cols[3].a['onclick']
-				print 'Origem:',cols[4].string
+				print 'Origem:',utf_normalize(cols[4].string)
 				print 'Valor(R$):',cols[6].string
-				print 'Registro:',cols[7].string
-				print 'Tipo Operacao:',cols[8].string
-				print 'Situacao Documento:',cols[9].string
+				print 'Registro:',utf_normalize(cols[7].string)
+				print 'Tipo Operacao:',utf_normalize(cols[8].string)
+				print 'Situacao Documento:',utf_normalize(cols[9].string)
 				
 				hash_cpf = user
-				nf_numero = cols[3].string
-				nf_municipio = cols[0].string
-				nf_razao_social = cols[1].string
-				nf_emissao = cols[2].string
+				nf_numero = utf_normalize(cols[3].string)
+				nf_municipio = utf_normalize(cols[0].string)
+				nf_razao_social = utf_normalize(cols[1].string)
+				nf_emissao = utf_normalize(cols[2].string)
+				nf_tipo_operacao = utf_normalize(cols[8].string)
+				nf_sit_doc = utf_normalize(cols[9].string)
 
 				# ignore NFe where Tipo Operacao is different from 'Aquisicao'
-				if cols[8].string[:6] != 'Aquisi':
+				if nf_tipo_operacao[:6] != 'Aquisi':
 					print 'INFO: Ignorando NFe diferente de Aquisicao.'
 					continue
 				# ignore NFe where Situacao Documento is different from 'Normal'
-				if cols[9].string[:6] != 'Normal':
+				if nf_sit_doc[:6] != 'Normal':
 					print 'INFO: Ignorando NFe diferente de Normal.'
 					continue
 
 				# update last_date for the next round
-				last_date = datetime.strptime(cols[2].string, '%d/%m/%y')
+				last_date = datetime.strptime(nf_emissao, '%d/%m/%y')
 				
 				# insert NFe into DB
 				DBinsertNF(db, cur, hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao)
@@ -195,12 +203,12 @@ def scrapeNFdata(user, password):
 						if len(items_hdrs) == 5:   # avoid attempting to read empty lines
 							print items_hdrs[0].string , items_hdrs[1].string, items_hdrs[2].string, items_hdrs[3].string, items_hdrs[4].string
 						if len(items_cols) == 5:   # avoid attempting to read empty lines
-							nf_codigo = items_cols[0].string
-							nf_desc = items_cols[1].string
-							nf_qtd  = int(items_cols[2].string)
-							nf_val_total = float(items_cols[0].string)
+							nf_codigo = utf_normalize(items_cols[0].string)
+							nf_desc = utf_normalize(items_cols[1].string)
+							nf_qtd  = int(utf_normalize(items_cols[2].string))
+							nf_val_total = float(utf_normalize(items_cols[0].string))
 							nf_val_unit = nf_val_total / nf_qtd
-							print items_cols[0].string , items_cols[1].string, items_cols[2].string, items_cols[3].string, items_cols[4].string
+							print nf_codigo, nf_desc, nf_qtd, items_cols[3].string, items_cols[4].string
 							DBinsertNFitem(db, cur, hash_cpf, nf_numero, nf_codigo, nf_desc, nf_qtd, nf_un, nf_val_unit, nf_val_total)
 					continue  # We've got the data, skip the rest
 
@@ -247,13 +255,13 @@ def scrapeNFdata(user, password):
 					nfe_cols = nfe_tr.findAll('td')
 					if (nfe_cols[2].string == 'Qtde'):	# skip headers
 						continue
-					nf_codigo = nfe_cols[0].string
-					nf_desc = nfe_cols[1].string
-					nf_qtd = nfe_cols[2].string
-					nf_un = nfe_cols[3].string
-					nf_val_unit = nfe_cols[4].string
-					nf_val_total = nfe_cols[5].string
-					print nfe_cols[0].string , nfe_cols[1].string, nfe_cols[2].string, nfe_cols[3].string, nfe_cols[4].string, nfe_cols[5].string
+					nf_codigo = utf_normalize(nfe_cols[0].string)
+					nf_desc = utf_normalize(nfe_cols[1].string)
+					nf_qtd = utf_normalize(nfe_cols[2].string)
+					nf_un = utf_normalize(nfe_cols[3].string)
+					nf_val_unit = utf_normalize(nfe_cols[4].string)
+					nf_val_total = utf_normalize(nfe_cols[5].string)
+					print nf_codigo, nf_desc, nf_qtd, nf_un, nf_val_unit, nf_val_total
 					DBinsertNFitem(db, cur, hash_cpf, nf_numero, nf_codigo, nf_desc, nf_qtd, nf_un, nf_val_unit, nf_val_total)
 			except: # let's log the error and skip this NFe...
 				print "Unexpected error:", sys.exc_info()[0]
@@ -265,20 +273,44 @@ def scrapeNFdata(user, password):
 def DBinsertNF(db, cur, hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao):
 	print "inserting NF into DB"
 	try:
-		cur.insert("INSERT INTO nf VALUES (%s,%s,%s,%s,STR_TO_DATE('%s'), '%d%m%Y')", (hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao))
+		cur.execute("INSERT INTO nf VALUES (%s,%s,%s,%s,STR_TO_DATE(%s, '%%d/%%m/%%y'))", (hash_cpf, nf_numero, nf_municipio, nf_razao_social, nf_emissao))
 		db.commit()
+	except MySQLdb.Error as e:
+		print "MySQL DB error inserting NF, rolling back"
+		db.rollback()
+		try:
+			print "MySQL Error [%d]: %s" % (e.args[0], e.args[1])
+		except IndexError:
+			print "MySQL Error: %s" % str(e)
 	except:
 		print "DB error inserting NF, rolling back"
 		db.rollback()
+		print "Unexpected error:", sys.exc_info()[0]
+		raise
 
 def DBinsertNFitem(db, cur, hash_cpf, nf_numero, nf_codigo, nf_desc, nf_qtd, nf_un, nf_val_unit, nf_val_total):
 	print "inserting NF item into DB"
 	try:
-		cur.insert("INSERT INTO nf_item VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", (hash_cpf, nf_numero, nf_desc, nf_codigo, nf_qtd, nf_val_unit, nf_val_total))
+		cur.execute("INSERT INTO nf_item VALUES (%s,%s,%s,%s,%s,%s,%s)", (hash_cpf, nf_numero, nf_desc, nf_codigo, fix_decimal(nf_qtd), fix_decimal(nf_val_unit), fix_decimal(nf_val_total)))
 		db.commit()
+	except MySQLdb.Error as e:
+		print "MySQL DB error inserting NF entry, rolling back"
+		db.rollback()
+		try:
+			print "MySQL Error [%d]: %s" % (e.args[0], e.args[1])
+		except IndexError:
+			print "MySQL Error: %s" % str(e)
 	except:
 		print "DB error inserting NF entry, rolling back"
 		db.rollback()
+		print "Unexpected error:", sys.exc_info()[0]
+		raise
+
+def utf_normalize(string):
+	return unicodedata.normalize('NFKD',string).encode('ASCII', 'ignore')
+
+def fix_decimal(string):
+	return string.replace(',', '.')
 
 if __name__ == "__main__":
     app.run(host= '0.0.0.0')
