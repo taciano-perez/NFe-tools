@@ -1,0 +1,8 @@
+# create container for microservice 'CestaBasica'
+FROM ubuntu:16.04
+MAINTAINER Taciano Perez <tdperez@hotmail.com>
+RUN apt-get update && apt-get install -y python-mysqldb wget
+RUN wget https://bootstrap.pypa.io/get-pip.py
+RUN python get-pip.py
+RUN pip install flask
+ADD python/REST_cesta_basica.py python/REST_cesta_basica.py
